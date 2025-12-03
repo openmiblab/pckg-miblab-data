@@ -1,0 +1,70 @@
+# https://packaging.python.org/en/latest/specifications/pyproject-toml/#pyproject-toml-spec
+
+[build-system]
+build-backend = 'setuptools.build_meta'
+requires = ['setuptools>=61.2']
+
+[project]
+name = "miblab-data"
+version = "0.0.0"
+dependencies = [
+  'importlib-resources>=1.1.0',
+  'requests',
+  'tqdm',
+  'numpy',
+]
+# optional information
+description = "A python API for miblab data"
+readme = "README.md"
+authors = [
+  { name = "Steven Sourbron", email = "s.sourbron@sheffield.ac.uk" },
+  { name = "Kevin Teh", email = "k.teh@sheffield.ac.uk" },
+]
+license = "Apache-2.0"
+classifiers = [
+  # How mature is this project? Common values are
+  #   3 - Alpha
+  #   4 - Beta
+  #   5 - Production/Stable
+  'Development Status :: 3 - Alpha',
+
+  # Indicate who your project is intended for
+  'Intended Audience :: Developers',
+  'Intended Audience :: Science/Research',
+  'Topic :: Scientific/Engineering',
+  'Operating System :: OS Independent',
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3"
+]
+keywords = [
+  'python', 
+  "medical imaging",  
+  "MRI",
+  "XNAT",
+]
+
+
+[project.urls]
+"Homepage" = "https://miblab.org/"
+"Source Code" = "https://github.com/openmiblab/miblab-data"
+
+[project.optional-dependencies]
+dev = [
+  'dbdicom',
+  'pytest',
+  'pytest-cov',
+  'build',
+  'twine',
+  'autopep8',
+  'pycodestyle',
+]
+
+[tool.setuptools]
+# ...
+# By default, include-package-data is true in pyproject.toml, so you do
+# NOT have to specify this line.
+include-package-data = true
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
