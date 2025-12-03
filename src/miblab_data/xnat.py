@@ -200,7 +200,8 @@ def _read_user_file():
 
     return username, password
 
-def credentials():
+
+def xnat_credentials():
     # Check if the file exists
     if os.path.exists("user_XNAT.txt"):
         # If the file exists, read username and password
