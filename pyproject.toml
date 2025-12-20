@@ -8,7 +8,6 @@ requires = ['setuptools>=61.2']
 name = "miblab-data"
 version = "0.0.0"
 dependencies = [
-  'importlib-resources>=1.1.0',
   'requests',
   'tqdm',
   'numpy',
@@ -48,16 +47,6 @@ keywords = [
 "Homepage" = "https://miblab.org/"
 "Source Code" = "https://github.com/openmiblab/miblab-data"
 
-[project.optional-dependencies]
-dev = [
-  'dbdicom',
-  'pytest',
-  'pytest-cov',
-  'build',
-  'twine',
-  'autopep8',
-  'pycodestyle',
-]
 
 [tool.setuptools]
 # ...
