@@ -1,9 +1,9 @@
 import os
+import logging
 import requests
 from requests.auth import HTTPBasicAuth
 
 from tqdm import tqdm
-import numpy as np
 
 # import zipfile
 # import datetime
@@ -72,39 +72,31 @@ import numpy as np
 
 
 
-def xnat_download_series(
-    xnat_url, username, password, output_dir, project_id,
-    subject_label=None, experiment_label=None, attr=None, value=None,
+def download_series(
+    xnat_url, output_dir, project_id,
+    subject_label=None, experiment_label=None, attr:dict=None,
+    n_max=None, log=False,
 ):
     """
     Downloads all scan series with a given attribute value.
 
     Args:
         xnat_url (str): Base URL of the XNAT server.
-        username (str): XNAT username.
-        password (str): XNAT password.
         output_dir (str): Directory to store downloaded data.
         project_id (str): XNAT project ID.
         subject_label (str): XNAT subject label. If this is None, 
             all subjects are downloaded. Defaults to None.
         experiment_label (str): XNAT experiment label. If this is None, 
             all experiments are downloaded. Defaults to None.
-        attr (str ro tuple of str): Attribute(s) to filter by (e.g. 'sequence').
-        value: Desired value(s) for the attribute(s).
+        attr (dict, optional): Attribute(s) to filter by. Keys 
+            must be valid XNAT attributes, and values must be a list 
+            of required values. Series will only be returned if each 
+            attribute has a value in the list.
+        n_max (int, optional): maximum number of series to download
+        log (bool, optional): If True each download is logged.
     """
-    if np.isscalar(value):
-        value = [value]
-    if isinstance(attr, tuple):
-        value_list = []
-        for v in value:
-            if np.isscalar(v):
-                value_list.append([v])
-            else:
-                value_list.append(v)
-        value = tuple(value_list)
-
-    session = requests.Session()
-    session.auth = HTTPBasicAuth(username, password)
+    n_downloaded = 0
+    session = _xnat_session()
 
     # Loop over all subjects in the project
     subj_url = f"{xnat_url}/data/projects/{project_id}/subjects?format=json"
@@ -149,18 +141,13 @@ def xnat_download_series(
                 r.raise_for_status()
                 scan_attrs = r.json()['items'][0]['data_fields']
 
-                # Continue if the scan does not have the right attributes
-                if isinstance(attr, str):
-                    if scan_attrs.get(attr) not in value:
-                        continue
-                if isinstance(attr, tuple):
-                    cont = False
-                    for i, a in enumerate(attr):
-                        if scan_attrs.get(a) not in value[i]:
-                            cont=True
-                            continue
-                    if cont:
-                        continue
+                # Continue if the scan has the right attributes
+                download=True
+                for key, val in attr.items():
+                    if scan_attrs.get(key) not in val:
+                        download=False
+                if not download:
+                    continue
 
                 # Define download locations
                 download_url = f"{xnat_url}/data/experiments/{exp_id}/scans/{scan_id}/resources/DICOM/files?format=zip"
@@ -178,7 +165,22 @@ def xnat_download_series(
                     for chunk in r.iter_content(chunk_size=8192):
                         f.write(chunk)
 
+                if log:
+                    logging.info(f"Successfully downloaded {out_path}")
 
+                # Check exit condition
+                n_downloaded += 1
+                if n_max is not None:
+                    if n_downloaded >= n_max:
+                        return
+
+
+
+def _xnat_session():
+    username, password = xnat_credentials()
+    session = requests.Session()
+    session.auth = HTTPBasicAuth(username, password)
+    return session
 
 
 def _create_user_file():
@@ -190,6 +192,7 @@ def _create_user_file():
     with open("user_XNAT.txt", "w") as file:
         file.write(f"Username: {username}\n")
         file.write(f"Password: {password}\n")
+
 
 def _read_user_file():
     # Read the username and password from the text file

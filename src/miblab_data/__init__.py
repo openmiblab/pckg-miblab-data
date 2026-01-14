@@ -1,6 +1,4 @@
-from miblab_data.xnat import (
-    xnat_download_series,
-    xnat_credentials,
-)
+import miblab_data.xnat
+
 
 
