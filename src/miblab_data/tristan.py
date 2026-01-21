@@ -67,7 +67,7 @@ def rat_fetch(
     --------
     **Download a single study and leave it zipped**
 
-    >>> from miblab import rat_fetch
+    >>> from miblab_data.tristan import rat_fetch
     >>> rat_fetch("S01", folder="~/tristanrat", unzip=False)
     ['/home/you/tristanrat/S01.zip']
 

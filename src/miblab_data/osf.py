@@ -29,8 +29,8 @@ def fetch(dataset: str, folder: str, project: str = "un5ct", token: str = None, 
         str: Path to the local folder containing the downloaded data.
 
     Example:
-        >>> from miblab import osf_fetch
-        >>> osf_fetch('TRISTAN/RAT/bosentan_highdose/Sanofi', 'test_download')
+        >>> from miblab.osf import fetch
+        >>> fetch('TRISTAN/RAT/bosentan_highdose/Sanofi', 'test_download')
     """
 
     # Prepare local folder
@@ -117,8 +117,8 @@ def upload(folder: str, dataset: str, project: str = "un5ct", token: str = None,
         RuntimeError: If upload fails for any reason.
 
     Example:
-        >>> from miblab import osf_upload
-        >>> osf_upload(
+        >>> from miblab.osf import upload
+        >>> upload(
         ...     folder='data/results.csv',
         ...     dataset='Testing/results.csv',
         ...     project='un5ct',
