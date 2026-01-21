@@ -52,7 +52,7 @@ def rat_fetch(
         ZIP-in-ZIP structures).
     convert
         If *True*, every DICOM folder is converted to compressed NIfTI
-        (_requires the **dicom2nifti** wheel and ``unzip=True``_).
+        (requires the **dicom2nifti** wheel and ``unzip=True``).
     keep_archives
         Forwarded to :func:`_unzip_nested`; set *True* to retain each
         inner ZIP after extraction (useful for auditing).
@@ -65,20 +65,50 @@ def rat_fetch(
 
     Examples
     --------
-    **Download a single study and leave it zipped**
+    Download a single study and leave it zipped
 
     >>> from miblab_data.tristan import rat_fetch
-    >>> rat_fetch("S01", folder="~/tristanrat", unzip=False)
-    ['/home/you/tristanrat/S01.zip']
 
-    **Fetch the entire collection, unzip, but skip conversion**
+    Single study, leave zipped
+
+    >>> rat_fetch("S01", folder="./rat_data", unzip=False)
+    ['/home/you/rat_data/S01.zip']
+
+    Single study, unzip everything and convert to NIfTI (requires dicom2nifti)
+
+    >>> rat_fetch("S01", folder="./rat_data", unzip=True, convert=True)
+
+    Download by group (friendly names):
+
+    - rifampicin_effect_size → S01, S02, S03, S04
+    - six_compound → S05, S06, S07, S08, S09, S10, S12
+    - field_strength → S13
+    - chronic → S11, S14, S15
+
+    Example of download by group: Rifampicin effect-size (S01–S04)
+
+    >>> rat_fetch("rifampicin_effect_size", folder="./rat_data", unzip=True, convert=False)
+
+    Example of download by group: Six-compound set (S05, S06, S07, S08, S10, S12)
+
+    >>> rat_fetch("six_compound", folder="./rat_data", unzip=True, convert=False)
+
+    Example of download by group: Field-strength (S13)
+
+    >>> rat_fetch("field_strength", folder="./rat_data", unzip=True, convert=False)
+
+    Example of download by group: Chronic studies (S11, S14, S15)
+
+    >>> rat_fetch("chronic", folder="./rat_data", unzip=True, convert=False)
+
+    Fetch the entire collection, unzip, but skip conversion
 
     >>> rat_fetch(dataset="all",
     ...           folder="./rat_data",
     ...           unzip=True,
     ...           convert=False)
 
-    **Full end-to-end pipeline (requires dicom2nifti)**
+    Full end-to-end pipeline (requires dicom2nifti)
 
     >>> rat_fetch("S03",
     ...           folder="./rat_data",
@@ -87,6 +117,13 @@ def rat_fetch(
 
     The call returns the list of ZIP paths; side-effects are files
     extracted (and optionally NIfTI volumes) under *folder*.
+
+    Notes
+    -----
+
+    - unzip=True recursively extracts any inner ZIPs.
+    - convert=True writes compressed NIfTI files alongside the DICOM tree (requires dicom2nifti; installed via miblab[data]).
+    - You may pass "S01" or "s01"; labels are case-insensitive.
     """
 
     # ── resolve study IDs ───────────────────────────────────────────────────
