@@ -1,0 +1,5 @@
+autopep8
+pycodestyle
+build
+twine
+pytest

@@ -6,11 +6,14 @@ requires = ['setuptools>=61.2']
 
 [project]
 name = "miblab-data"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
-  'requests',
+  'importlib-resources>=1.1.0',
   'tqdm',
-  'numpy',
+  'requests',
+  'osfclient',
+  'pydicom<3',
+  'dicom2nifti==2.3.4',
 ]
 # optional information
 description = "A python API for miblab data"
@@ -45,7 +48,7 @@ keywords = [
 
 [project.urls]
 "Homepage" = "https://miblab.org/"
-"Source Code" = "https://github.com/openmiblab/miblab-data"
+"Source Code" = "https://github.com/openmiblab/docs-miblab-data"
 
 
 [tool.setuptools]

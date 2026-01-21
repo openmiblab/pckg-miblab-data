@@ -22,7 +22,7 @@ Installation
 
 Install miblab-dl from source:
 
->>> pip install -e path\to\miblab-dl
+>>> pip install -e path\to\miblab-data
 
 Install dev requirements:
 
@@ -46,7 +46,6 @@ Check any remaining isues and fix manually
 Note agressive option - dangerous - may need debugging. Use carefully and test 
 after changing
 >>> autopep8 src//miblab-package/file.py --in-place --aggressive
-
 
 
 Run test suite and check test coverage
