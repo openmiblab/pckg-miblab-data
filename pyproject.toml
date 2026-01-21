@@ -6,13 +6,13 @@ requires = ['setuptools>=61.2']
 
 [project]
 name = "miblab-data"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
   'importlib-resources>=1.1.0',
   'tqdm',
   'requests',
   'osfclient',
-  'pydicom<3',
+  'pydicom',
   'dicom2nifti==2.3.4',
 ]
 # optional information
