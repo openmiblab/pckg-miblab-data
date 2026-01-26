@@ -2,108 +2,26 @@
 tests.test_tristan
 ==================
 
-Minimal integration test and usage documentation for TRISTAN data access.
+Minimal integration test for TRISTAN dataset access.
 
 This module verifies that TRISTAN preclinical rat MRI studies can be
-downloaded programmatically from Zenodo and saved locally as compressed
-ZIP archives. The test itself exercises only ZIP download behaviour.
+downloaded programmatically from Zenodo as study-level ZIP archives.
 
-The accompanying examples document common user workflows, including:
-- downloading a single study
-- downloading a selected subset of studies
-- downloading the full dataset
-- optionally extracting DICOM files and converting to NIfTI format
+Scope
+-----
+This test validates:
+• DOI-based retrieval via ``rat_fetch()``
+• idempotent behaviour on repeated calls
+• presence and non-zero size of downloaded ZIP files
 
-Core design principle
----------------------
-This package is *data-first*. The primary responsibility is to provide
-reliable, reproducible access to the archived dataset. Extraction and
-format conversion are optional downstream steps provided for user
-convenience and are not required for basic data access.
+Out of scope
+------------
+• ZIP extraction
+• DICOM parsing
+• NIfTI conversion
 
-Examples
---------
-Single-study download (ZIP only):
-
->>> from pathlib import Path
->>> from miblab_data.tristan import rat_fetch
->>> out_dir = Path.home() / "Downloads" / "TRISTAN_rat"
->>> rat_fetch(
-...     dataset="S01",
-...     folder=out_dir,
-...     unzip=False,
-...     convert=False,
-... )
-
-Result:
-    ~/Downloads/TRISTAN_rat/S01.zip
-
-
-Download a selected subset of studies (e.g. S02 and S04):
-
->>> from pathlib import Path
->>> from miblab_data.tristan import rat_fetch
->>> out_dir = Path.home() / "Downloads" / "TRISTAN_rat"
->>> for study in ["S02", "S04"]:
-...     rat_fetch(
-...         dataset=study,
-...         folder=out_dir,
-...         unzip=False,
-...         convert=False,
-...     )
-
-Result:
-    ~/Downloads/TRISTAN_rat/
-        ├── S02.zip
-        └── S04.zip
-
-
-Download the full dataset (all studies):
-
->>> from pathlib import Path
->>> from miblab_data.tristan import rat_fetch
->>> out_dir = Path.home() / "Downloads" / "TRISTAN_rat"
->>> rat_fetch(
-...     dataset="all",
-...     folder=out_dir,
-...     unzip=False,
-...     convert=False,
-... )
-
-Result:
-    ~/Downloads/TRISTAN_rat/
-        ├── S01.zip
-        ├── S02.zip
-        ├── ...
-        └── S15.zip
-
-
-Optional: DICOM extraction and NIfTI conversion
------------------------------------------------
-Downloaded archives contain DICOM files. Users who wish to extract and
-convert these data to NIfTI format may enable optional processing using
-the ``dicom2nifti`` package.
-
-This functionality is optional, requires ``dicom2nifti`` to be installed
-separately, and is provided for convenience only.
-
->>> from pathlib import Path
->>> from miblab_data.tristan import rat_fetch
->>> out_dir = Path.home() / "Downloads" / "TRISTAN_rat"
->>> rat_fetch(
-...     dataset="S01",
-...     folder=out_dir,
-...     unzip=True,
-...     convert=True,
-... )
-
-Result:
-    - DICOM files extracted under ``out_dir/S01/``
-    - Converted NIfTI files written to ``out_dir_nifti/S01/``
-
-Notes:
-    - Users may perform extraction or conversion using alternative tools.
-    - Conversion is not required for dataset access or reproducibility.
+These behaviours are intentionally excluded to keep tests fast,
+deterministic, and network-light.
 """
 
 from pathlib import Path
