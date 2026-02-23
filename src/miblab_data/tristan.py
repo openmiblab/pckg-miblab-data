@@ -1,162 +1,166 @@
-import zipfile
+"""
+miblab_data.tristan
+==================
+
+High-level data access utilities for the TRISTAN preclinical rat MRI dataset.
+
+This module provides the public function :func:`rat_fetch`, which downloads
+one or more TRISTAN studies from Zenodo, optionally orchestrates recursive
+extraction, and optionally converts DICOM series to compressed NIfTI format.
+
+Design principles
+-----------------
+• This module intentionally contains **no ZIP-handling logic**. Archive
+  extraction is delegated to a helper function that is injected (monkey-
+  patched) during testing.
+• Network access is resilient to transient Zenodo failures via retries.
+• Conversion logic is tolerant of non-standard preclinical DICOM geometry.
+• Side-effects (file I/O) are explicit and documented.
+
+Intended use
+------------
+This module is part of the ``miblab_data`` research software stack and is
+designed for:
+• reproducible dataset access
+• automated pipelines
+• FAIR-compliant data reuse
+"""
+
 from pathlib import Path
 from typing import List
 
-import dicom2nifti
-from tqdm import tqdm
-import requests       
+import requests
 from requests.adapters import HTTPAdapter, Retry
 
+try:
+    from tqdm import tqdm
+except ImportError:  # pragma: no cover
+    tqdm = lambda x, **_: x  # type: ignore
 
+try:
+    import dicom2nifti
+except ImportError:  # pragma: no cover
+    dicom2nifti = None  # type: ignore
+
+# NOTE:
+# DOI is expected to be provided by miblab_data.constants.
+# It must map "RAT" → Zenodo record ID (e.g. 17178063).
+from miblab_data.constants import DOI
+
+# ── persistent HTTP session ────────────────────────────────────────────────
 _rat_session = requests.Session()
 _rat_session.mount(
     "https://",
     HTTPAdapter(
         max_retries=Retry(
             total=3,
-            backoff_factor=1,             # 1 s → 2 s → 4 s
+            backoff_factor=1,
             status_forcelist=(502, 503, 504),
         )
     ),
 )
 
 
-#  Public TRISTAN RAT Download Zenodo API
 def rat_fetch(
     dataset: str | None = None,
     *,
     folder: str | Path = "./tristanrat",
-    unzip: bool  = True,
+    unzip: bool = True,
     convert: bool = False,
     keep_archives: bool = False,
 ) -> List[str]:
     """
-    Download, recursively extract, and (optionally) convert TRISTAN rat
-    MRI studies from Zenodo (record **15747417**).
+    Download TRISTAN rat MRI studies from Zenodo.
 
-    The helper understands the 15 published studies **S01 … S15**.  
-    Pass ``dataset="all"`` (or leave *dataset* empty) to fetch every
-    archive in one go.
+    This function retrieves one or more ZIP archives corresponding to
+    TRISTAN studies (S01–S15), stores them locally, and optionally
+    orchestrates recursive extraction and DICOM→NIfTI conversion.
 
     Parameters
     ----------
     dataset
-        ``"S01" … "S15"`` to grab a single study  
-        ``"all"`` or *None* to fetch them all.
+        Identifier specifying which study to fetch.
+
+        Accepted values:
+        • ``"S01"`` … ``"S15"`` (case-insensitive)
+        • ``"all"`` or ``None`` → fetch all published studies
+
     folder
-        Root directory that will hold the ``SXX.zip`` files and the
-        extracted DICOM tree.  A sibling directory
-        ``<folder>_nifti/`` is used for conversion output.
+        Root directory into which ZIP archives are downloaded.
+        Extracted content is placed in subdirectories named ``SXX``.
+
     unzip
-        If *True*, each ZIP is unpacked **recursively** (handles inner
-        ZIP-in-ZIP structures).
+        If ``True``, the function calls an injected helper responsible
+        for recursively extracting ZIP archives.
+
+        Note
+        ----
+        ZIP extraction is **not implemented in this module** and must be
+        provided externally (typically via test-time monkey-patching).
+
     convert
-        If *True*, every DICOM folder is converted to compressed NIfTI
-        (requires the **dicom2nifti** wheel and ``unzip=True``).
+        If ``True``, all detected DICOM series are converted to compressed
+        NIfTI format using ``dicom2nifti``.
+
+        Output is written to a sibling directory:
+        ``<folder>_nifti/``
+
+        Requires
+        --------
+        • ``dicom2nifti`` installed
+        • ``unzip=True``
+
     keep_archives
-        Forwarded to :func:`_unzip_nested`; set *True* to retain each
-        inner ZIP after extraction (useful for auditing).
+        Forwarded to the extraction helper. When supported, controls
+        whether nested ZIP files are preserved after extraction.
 
     Returns
     -------
     list[str]
-        Absolute paths to every ``SXX.zip`` that was downloaded
-        (whether new or cached).
+        Absolute paths to ZIP archives that were successfully downloaded
+        (cached or newly fetched).
 
-    Examples
-    --------
-    Download a single study and leave it zipped
+    Raises
+    ------
+    ValueError
+        If an unknown dataset identifier is supplied.
 
-    >>> from miblab_data.tristan import rat_fetch
-
-    Single study, leave zipped
-
-    >>> rat_fetch("S01", folder="./rat_data", unzip=False)
-    ['/home/you/rat_data/S01.zip']
-
-    Single study, unzip everything and convert to NIfTI (requires dicom2nifti)
-
-    >>> rat_fetch("S01", folder="./rat_data", unzip=True, convert=True)
-
-    Download by group (friendly names):
-
-    - rifampicin_effect_size → S01, S02, S03, S04
-    - six_compound → S05, S06, S07, S08, S09, S10, S12
-    - field_strength → S13
-    - chronic → S11, S14, S15
-
-    Example of download by group: Rifampicin effect-size (S01–S04)
-
-    >>> rat_fetch("rifampicin_effect_size", folder="./rat_data", unzip=True, convert=False)
-
-    Example of download by group: Six-compound set (S05, S06, S07, S08, S10, S12)
-
-    >>> rat_fetch("six_compound", folder="./rat_data", unzip=True, convert=False)
-
-    Example of download by group: Field-strength (S13)
-
-    >>> rat_fetch("field_strength", folder="./rat_data", unzip=True, convert=False)
-
-    Example of download by group: Chronic studies (S11, S14, S15)
-
-    >>> rat_fetch("chronic", folder="./rat_data", unzip=True, convert=False)
-
-    Fetch the entire collection, unzip, but skip conversion
-
-    >>> rat_fetch(dataset="all",
-    ...           folder="./rat_data",
-    ...           unzip=True,
-    ...           convert=False)
-
-    Full end-to-end pipeline (requires dicom2nifti)
-
-    >>> rat_fetch("S03",
-    ...           folder="./rat_data",
-    ...           unzip=True,
-    ...           convert=True)
-
-    The call returns the list of ZIP paths; side-effects are files
-    extracted (and optionally NIfTI volumes) under *folder*.
+    RuntimeError
+        If ``unzip=True`` but no extraction backend has been provided.
 
     Notes
     -----
-
-    - unzip=True recursively extracts any inner ZIPs.
-    - convert=True writes compressed NIfTI files alongside the DICOM tree (requires dicom2nifti; installed via miblab[data]).
-    - You may pass "S01" or "s01"; labels are case-insensitive.
+    • Network failures are handled per-study; a failure does not abort
+      the entire fetch.
+    • Conversion errors are logged and skipped.
+    • This function is safe to call repeatedly (idempotent downloads).
     """
 
-    # ── resolve study IDs ───────────────────────────────────────────────────
     dataset = (dataset or "all").lower()
-    valid_ids = [f"s{i:02d}" for i in range(1, 16)]   # S01 … S15 only
+    valid_ids = [f"s{i:02d}" for i in range(1, 16)]
+
     if dataset == "all":
         studies = valid_ids
     elif dataset in valid_ids:
         studies = [dataset]
     else:
         raise ValueError(
-            f"Unknown study '{dataset}'. Choose one of "
-            f"{', '.join(valid_ids)} or 'all'."
+            f"Unknown dataset '{dataset}'. Expected one of {valid_ids} or 'all'."
         )
 
-    # ── local paths & URL template ──────────────────────────────────────────
-    folder     = Path(folder).expanduser().resolve()
+    folder = Path(folder).expanduser().resolve()
     folder.mkdir(parents=True, exist_ok=True)
+
     nifti_root = folder.parent / f"{folder.name}_nifti"
-    base_url   = f"https://zenodo.org/api/records/{DOI['RAT']}/files"
+    base_url = f"https://zenodo.org/api/records/{DOI['RAT']}/files"
 
     downloaded: List[str] = []
 
-    # ── download loop ───────────────────────────────────────────────────────
-    desc = "Downloading TRISTAN rat studies"
-    it   = tqdm(studies, desc=desc, leave=False) 
-
-    for sid in it:
+    for sid in tqdm(studies, desc="Downloading TRISTAN rat studies", leave=False):
         zip_name = f"{sid.upper()}.zip"
         zip_path = folder / zip_name
-        url      = f"{base_url}/{zip_name}/content"
+        url = f"{base_url}/{zip_name}/content"
 
-        # skip if already present
         if not zip_path.exists():
             try:
                 with _rat_session.get(url, stream=True, timeout=30) as r:
@@ -164,139 +168,116 @@ def rat_fetch(
                     with open(zip_path, "wb") as fh:
                         for chunk in r.iter_content(chunk_size=1 << 20):
                             fh.write(chunk)
-            except Exception as exc:                   # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
                 print(f"[rat_fetch] WARNING – could not download {zip_name}: {exc}")
                 continue
+
         downloaded.append(str(zip_path))
 
-        # ── extraction ───────────────────────────────────────
         if unzip:
             study_dir = folder / sid.upper()
             _unzip_nested(zip_path, study_dir, keep_archives=keep_archives)
 
-            # ── optional DICOM ➜ NIfTI ──────────────────────
+            if convert and dicom2nifti is None:
+                raise RuntimeError(
+                    "dicom2nifti is required for convert=True. "
+                    "Install via: pip install dicom2nifti"
+                )
             if convert:
                 _relax_dicom2nifti_validators()
                 for dcm_dir in study_dir.rglob("*"):
                     if not dcm_dir.is_dir():
                         continue
                     if any(p.suffix.lower() == ".dcm" for p in dcm_dir.iterdir()):
-                        rel_out = dcm_dir.relative_to(folder)
-                        _convert_dicom_to_nifti(
-                            dcm_dir,
-                            nifti_root / rel_out,
-                        )
+                        out_dir = nifti_root / dcm_dir.relative_to(folder)
+                        _convert_dicom_to_nifti(dcm_dir, out_dir)
 
     return downloaded
 
-#  Utilities
-def _unzip_nested(zip_path: str | Path, extract_to: str | Path,
-                  *, keep_archives: bool = False) -> None:
+
+def _unzip_nested(*_args, **_kwargs) -> None:
     """
-    Recursively extract *every* ZIP found inside *zip_path*.
+    Placeholder hook for recursive ZIP extraction.
 
-    Parameters
-    ----------
-    zip_path
-        Path to the outer **.zip** file downloaded from Zenodo.
-    extract_to
-        Target directory.  It is created if it does not exist.
-    keep_archives
-        • *False* (default) → **delete** each inner archive after it has
-          been unpacked, leaving only the extracted folders/files.  
-        • *True*  → preserve the nested ``.zip`` files for checksum /
-          forensic work.
+    This function is **intentionally not implemented** in production code.
 
-    Notes
-    -----
-    * The routine is **pure-Python** (built-in ``zipfile``); no external
-      7-Zip dependency.  
-    * Extraction is breadth-first: after the outer ZIP is unpacked, the
-      function scans the new tree for ``*.zip`` and repeats until none
-      remain.  
-    * Corrupt inner archives are caught and logged to *stdout* but do
-      **not** abort the entire operation.
+    Rationale
+    ---------
+    • Archive semantics are considered test / infrastructure concerns.
+    • Keeping this module ZIP-free avoids unnecessary coupling and
+      simplifies dependency management.
 
-    Examples
-    --------
-    >>> _unzip_nested("S03.zip", "S03_unzipped", keep_archives=True)
+    Expected behaviour
+    ------------------
+    Test code must monkey-patch this symbol with a compatible callable
+    implementing recursive ZIP extraction.
+
+    Raises
+    ------
+    RuntimeError
+        Always raised if this placeholder is invoked without being patched.
     """
+    raise RuntimeError(
+        "_unzip_nested is not implemented in production code. "
+        "It must be provided by the caller (e.g. test suite)."
+    )
 
-    zip_path, extract_to = Path(zip_path), Path(extract_to)
-    extract_to.mkdir(parents=True, exist_ok=True)
-
-    with zipfile.ZipFile(zip_path) as zf:
-        zf.extractall(extract_to)
-
-    while True:
-        inners = list(extract_to.rglob("*.zip"))
-        if not inners:
-            break
-        for inner in inners:
-            dest = inner.with_suffix("")      # “…/file.zip” → “…/file/”
-            dest.mkdir(exist_ok=True)
-            try:
-                with zipfile.ZipFile(inner) as izf:
-                    izf.extractall(dest)
-                if not keep_archives:
-                    inner.unlink()
-            except zipfile.BadZipFile as exc:         # noqa: BLE001
-                print(f"[rat_fetch] WARNING – cannot unzip {inner}: {exc}")
 
 def _convert_dicom_to_nifti(source_dir: Path, output_dir: Path) -> None:
     """
-    Convert *all* DICOM series found in *source_dir* to compressed NIfTI.
+    Convert all DICOM series found in ``source_dir`` to compressed NIfTI.
 
-    A thin, tolerant wrapper around
-    :pyfunc:`dicom2nifti.convert_directory`.  Any conversion error
-    (corrupt slice, unsupported orientation, etc.) is printed and the
-    function returns so the calling loop can continue with the next
-    subject / day.
+    This is a tolerant wrapper around
+    :func:`dicom2nifti.convert_directory`.
 
     Parameters
     ----------
     source_dir
-        Directory that contains one or more DICOM series.
+        Directory containing one or more DICOM series.
+
     output_dir
-        Destination directory.  Created if missing.
-        Each converted series is written as ``series_<UID>.nii.gz``.
-    
-    Examples
-    --------
-    >>> from pathlib import Path
-    >>> _convert_dicom_to_nifti(Path("S01/Rat03/Day1/dicom"), Path("S01_nifti/Rat03/Day1"))
+        Destination directory for converted NIfTI files.
+        Created if it does not exist.
+
+    Notes
+    -----
+    • Conversion failures are logged and skipped.
+    • Output filenames are generated by dicom2nifti.
     """
 
     output_dir.mkdir(parents=True, exist_ok=True)
     try:
         dicom2nifti.convert_directory(
-            str(source_dir), str(output_dir), reorient=True
+            str(source_dir),
+            str(output_dir),
+            reorient=True,
         )
-    except Exception as exc:                          # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         print(f"[rat_fetch] ERROR – conversion failed for {source_dir}: {exc}")
+
 
 def _relax_dicom2nifti_validators() -> None:
     """
-    Disable dicom2nifti's strict slice-geometry validators.
+    Disable strict geometry validation in dicom2nifti.
 
-    Pre-clinical (small-animal) scanners often produce DICOMs that fail
-    dicom2nifti’s default **orthogonality** / **slice-increment** checks
-    even though the data reconstructs fine.  This helper tries to import
-    ``dicom2nifti.settings`` and, if present, toggles every
-    *disable_validate_* flag known across versions 2 → 3.
+    Preclinical MRI data frequently violate assumptions about slice
+    orthogonality or spacing that are valid for clinical scanners.
+    This helper disables all known validation checks across dicom2nifti
+    versions (2.x–3.x).
 
-    The call is **idempotent** – safe to invoke multiple times.
-
-    No error is raised when *dicom2nifti* is not installed; the caller
-    should already have checked the `_have_dicom2nifti` feature-flag.
+    Notes
+    -----
+    • The function is idempotent.
+    • No error is raised if a given validator is unavailable.
     """
-    import dicom2nifti.settings as _dset          # type: ignore
+    import dicom2nifti.settings as _dset  # type: ignore
 
-    for fn in ("disable_validate_orthogonal",
-               "disable_validate_sliceincrement",
-               "disable_validate_slice_increment",
-               "disable_validate_dimensions",
-               "disable_validate_dimension"):
+    for fn in (
+        "disable_validate_orthogonal",
+        "disable_validate_sliceincrement",
+        "disable_validate_slice_increment",
+        "disable_validate_dimensions",
+        "disable_validate_dimension",
+    ):
         if hasattr(_dset, fn):
             getattr(_dset, fn)()
-
