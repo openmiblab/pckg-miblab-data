@@ -8,12 +8,9 @@ requires = ['setuptools>=61.2']
 name = "miblab-data"
 version = "0.0.6"
 dependencies = [
-  'importlib-resources>=1.1.0',
   'tqdm',
   'requests',
   'osfclient',
-  'pydicom',
-  'dicom2nifti==2.3.4',
 ]
 # optional information
 description = "A python API for miblab data"
@@ -45,18 +42,17 @@ keywords = [
   "XNAT",
 ]
 
-
 [project.urls]
 "Homepage" = "https://miblab.org/"
 "Source Code" = "https://github.com/openmiblab/docs-miblab-data"
 
-
-[tool.setuptools]
-# ...
-# By default, include-package-data is true in pyproject.toml, so you do
-# NOT have to specify this line.
-include-package-data = true
-
+[project.optional-dependencies]
+dev = [
+  'build',
+  'twine',
+  'pytest',
+  'pytest-cov',
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

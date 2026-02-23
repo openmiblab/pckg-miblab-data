@@ -1,32 +1,21 @@
 SOPs for maintainers
 ********************
 
-Building a virtual environment
-------------------------------
+Installation
+------------
 
-Clone miblab-dl locally
+Clone miblab-data locally
 
 cd to top folder
 
 On windows:
 >>> python -m venv .venv           # create virtual environment
 >>> .venv/Scripts/activate        # activate virtual environment
+>>> pip install -e .[dev]       # Install with developer dependencies
 
 Then select the Python interpreter in the .venv folder. In VSCode:
 View > Command Palette > Python select interpreter -> enter interpreter path 
 (.venv/Scripts/python.exe)
-
-
-Installation
-------------
-
-Install miblab-dl from source:
-
->>> pip install -e path\to\miblab-data
-
-Install dev requirements:
-
->>> pip install -r dev/requirements.txt
 
 
 Enforce PEP8
@@ -51,11 +40,11 @@ after changing
 Run test suite and check test coverage
 --------------------------------------
 
-cd to //miblab-package top folder
->>> pytest --cov=miblab-package --cov-report term-missing
+cd to //miblab-data top folder
+>>> pytest --cov=miblab_data --cov-report term-missing
 
 To run a specific file (eg. test_utils) only, do:
->>> pytest tests/test_utils.py --cov=/miblab-package --cov-report term-missing
+>>> pytest tests/test_utils.py --cov=/miblab_package --cov-report term-missing
 
 
 Check tests in docstrings

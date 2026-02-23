@@ -49,7 +49,6 @@ def test_tristan_zip_download(tmp_path: Path) -> None:
         dataset="S01",
         folder=download_dir,
         unzip=False,
-        convert=False,
     )
 
     # Repeat download (should not fail)
@@ -57,7 +56,6 @@ def test_tristan_zip_download(tmp_path: Path) -> None:
         dataset="S01",
         folder=download_dir,
         unzip=False,
-        convert=False,
     )
 
     # Assertions
