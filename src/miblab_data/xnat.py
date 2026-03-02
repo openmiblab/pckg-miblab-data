@@ -9,7 +9,7 @@ from tqdm import tqdm
 def download_series(
     xnat_url, output_dir, project_id,
     subject_label=None, experiment_label=None, attr:dict=None,
-    n_max=None, log=False,
+    n_max=None, log=False, cred="user_XNAT.txt"
 ):
     """
     Downloads all scan series with a given attribute value.
@@ -28,9 +28,10 @@ def download_series(
             attribute has a value in the list.
         n_max (int, optional): maximum number of series to download
         log (bool, optional): If True each download is logged.
+        cred (str, optional): path to the txt file holding the credentials
     """
     n_downloaded = 0
-    session = _xnat_session()
+    session = _xnat_session(cred)
 
     # Loop over all subjects in the project
     subj_url = f"{xnat_url}/data/projects/{project_id}/subjects?format=json"
@@ -110,27 +111,27 @@ def download_series(
 
 
 
-def _xnat_session():
-    username, password = xnat_credentials()
+def _xnat_session(cred="user_XNAT.txt"):
+    username, password = xnat_credentials(cred)
     session = requests.Session()
     session.auth = HTTPBasicAuth(username, password)
     return session
 
 
-def _create_user_file():
+def _create_user_file(cred="user_XNAT.txt"):
     # Ask the user for username and password
     username = input("Enter your username: ")
     password = input("Enter your password: ")
 
     # Create a text file and write the username and password to it
-    with open("user_XNAT.txt", "w") as file:
+    with open(cred, "w") as file:
         file.write(f"Username: {username}\n")
         file.write(f"Password: {password}\n")
 
 
-def _read_user_file():
+def _read_user_file(cred="user_XNAT.txt"):
     # Read the username and password from the text file
-    with open("user_XNAT.txt", "r") as file:
+    with open(cred, "r") as file:
         lines = file.readlines()
         username = lines[0].split(":")[1].strip()
         password = lines[1].split(":")[1].strip()
@@ -138,14 +139,14 @@ def _read_user_file():
     return username, password
 
 
-def xnat_credentials():
+def xnat_credentials(cred="user_XNAT.txt"):
     # Check if the file exists
-    if os.path.exists("user_XNAT.txt"):
+    if os.path.exists(cred):
         # If the file exists, read username and password
-        existing_username, existing_password = _read_user_file()
+        existing_username, existing_password = _read_user_file(cred)
     else:
         # If the file does not exist, create a new file and ask for username and password
-        _create_user_file()
+        _create_user_file(cred)
         print("User file created successfully.")
-        existing_username, existing_password = _read_user_file()
+        existing_username, existing_password = _read_user_file(cred)
     return existing_username, existing_password

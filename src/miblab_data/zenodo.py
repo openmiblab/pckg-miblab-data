@@ -3,49 +3,12 @@ import os
 import zipfile
 import requests
 from pathlib import Path
- 
-
-import os
-import zipfile
-import requests
-from pathlib import Path
-
-
-def _get_zenodo_files(record_id, token=None):
-    url = f"https://zenodo.org/api/records/{record_id}"
-    headers = {}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-
-    r = requests.get(url, headers=headers)
-    r.raise_for_status()
-    return r.json()["files"]
-
-
-def _download_file(url, out_path, token=None):
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/octet-stream",
-    }
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-
-    out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with requests.get(url, headers=headers, stream=True, allow_redirects=True) as r:
-        r.raise_for_status()
-        with open(out_path, "wb") as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                f.write(chunk)
 
 
 def download(
     record_id,
     filename,
-    out_dir,
-    *,
-    token=None,
+    save_dir,
     extract=False,
 ):
     """
@@ -57,10 +20,8 @@ def download(
         Zenodo record ID (e.g. 15489381)
     filename : str
         Name of the file in the record (e.g. "data.zip")
-    out_dir : str or Path
+    save_dir : str or Path
         Directory where the file (and extracted contents) will be stored
-    token : str, optional
-        Zenodo API token for restricted records
     extract : bool, default=False
         If True and the file is a .zip archive, it will be extracted
 
@@ -69,32 +30,58 @@ def download(
     Path
         Path to the downloaded file or extracted folder
     """
-    out_dir = Path(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    filepath = os.path.join(save_dir, filename)
+    if os.path.exists(filepath):
+        print(f"Skipping download, file {filepath} already exists.")
+        return filepath
 
-    files = _get_zenodo_files(record_id, token)
+    # Dataset download link
+    file_url = f"https://zenodo.org/records/{record_id}/files/{filename}"
 
-    for f in files:
-        if f["key"] == filename:
-            url = f["links"]["content"]
-            file_path = out_dir / filename
+    # Make the request and check for connection error
+    try:
+        file_response = requests.get(file_url)
+    except requests.exceptions.ConnectionError as err:
+        raise requests.exceptions.ConnectionError(
+            f"\n\n"
+            f"A connection error occurred trying to download {filename} "
+            f"from Zenodo. This usually happens if you are offline. "
+            f"The detailed error message is here: {err}"
+        ) 
+    
+    # Check for other errors
+    file_response.raise_for_status()
 
-            # Cache: don't re-download if already exists
-            if not file_path.exists():
-                _download_file(url, file_path, token)
+    # Save the file
+    os.makedirs(save_dir, exist_ok=True)
+    with open(filepath, 'wb') as f:
+        f.write(file_response.content)
 
-            # Optional extraction
-            if extract and filename.lower().endswith(".zip"):
-                extract_dir = out_dir / file_path.stem
-                if not extract_dir.exists():
-                    with zipfile.ZipFile(file_path, "r") as z:
-                        z.extractall(extract_dir)
-                return extract_dir
+    # If the zip file is requested we are done
+    if not extract:
+        return filepath
+    
+    # If extraction requested, returned extracted
+    if filepath[-4:] == '.zip':
+        extract_to = filepath[:-4]
+    else:
+        extract_to = filepath + '_unzip'
 
-            return file_path
+    # Skip extraction if the folder already exists
+    if os.path.exists(extract_to):
+        return extract_to
 
-    raise ValueError(f"File '{filename}' not found in Zenodo record {record_id}")
+    # Perform extraction
+    os.makedirs(extract_to)
+    with zipfile.ZipFile(filepath, 'r') as zip_ref:
+        bad_file = zip_ref.testzip()
+        if bad_file:
+            raise zipfile.BadZipFile(
+                f"Cannot extract: corrupt file {bad_file}."
+            )
+        zip_ref.extractall(extract_to)
 
+    return extract_to
 
 
 
